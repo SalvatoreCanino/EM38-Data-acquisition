@@ -1,0 +1,70 @@
+/*
+  Arduino IoT Cloud Variables description
+
+  CloudAcceleration accelerazione;
+  float em38_sersor;
+  float radiation_Sensor;
+  CloudLocation coordinate;
+  CloudVelocity velocita;
+
+*/
+
+#include <Arduino.h>
+#include "TinyGPS++.h"
+#include <Wire.h>
+#include <ADS1X15.h>
+#include <Arduino_LSM6DS3.h>
+#include "thingProperties.h"
+
+TinyGPSPlus gps;
+ADS1115 ADS(0x48);
+
+void setup() {
+  // Start my new hardware serial
+  Serial.begin(9600);
+  Serial1.begin(9600);
+  delay(1500);
+  // Defined in thingProperties.h
+  initProperties();
+  pinMode(LED_BUILTIN, OUTPUT);
+  Wire.begin();
+  ADS.begin();
+  ADS.setGain(0);
+  IMU.begin();
+  // Connect to Arduino IoT Cloud
+  ArduinoCloud.begin(ArduinoIoTPreferredConnection);
+  setDebugMessageLevel(2);
+  ArduinoCloud.printDebugInfo();
+}
+
+void loop() {
+  ArduinoCloud.update();
+  
+  if (IMU.accelerationAvailable()) {
+    float Ax, Ay, Az;
+    IMU.readAcceleration(Ax, Ay, Az);
+    accelerazione =sqrt(Ax*Ax + Ay*Ay + Az*Az);
+  }
+  // Take-over of the EM38 Sensor
+  int16_t val_01 = ADS.readADC_Differential_0_1();
+  em38_sersor = ADS.toVoltage(val_01) * 1000;
+  // Take-over of the Extintion of Solar Radiation
+  int16_t val_2 = ADS.readADC(2);
+  int16_t val_3 = ADS.readADC(3);
+  float radiation_Sensor1 = ADS.toVoltage(val_2) * 500;
+  float radiation_Sensor2 = ADS.toVoltage(val_3) * 500;
+  radiation_Sensor = radiation_Sensor2/radiation_Sensor1;
+  // Timeout is for stop reading from gps serial  
+  Serial1.setTimeout(3 * 1000);
+  if (gps.encode(Serial1.read())){
+    // This line update the coordinate
+    coordinate = Location(gps.location.lat(), gps.location.lng());
+    // This line update the speed
+    velocita = gps.speed.kmph();
+  }
+}
+
+
+
+
+
